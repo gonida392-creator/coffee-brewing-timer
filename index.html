@@ -448,6 +448,8 @@ document.getElementById("resetAll").onclick = ()=>{
 let actx, masterGain, reverbIn;
 function initAudio(){
   if(actx) return;
+  // iOS 16.4+: 무음 스위치가 켜져 있어도 소리가 나도록 미디어(playback)로 선언
+  try{ if(navigator.audioSession) navigator.audioSession.type = "playback"; }catch(e){}
   const AC = window.AudioContext||window.webkitAudioContext;
   actx = new AC();
   masterGain = actx.createGain();
@@ -510,6 +512,22 @@ function soundDone(){
   }catch(e){}
 }
 
+// iOS/모바일: 첫 사용자 동작에서 오디오 잠금 해제 (무음 버퍼 재생)
+let audioUnlocked = false;
+function unlockAudio(){
+  if(audioUnlocked) return;
+  try{
+    initAudio();
+    if(actx.state==="suspended") actx.resume();
+    const s = actx.createBufferSource();
+    s.buffer = actx.createBuffer(1, 1, 22050);
+    s.connect(actx.destination); s.start(0);
+    audioUnlocked = true;
+  }catch(e){}
+}
+["touchend","pointerdown","click"].forEach(ev =>
+  document.addEventListener(ev, unlockAudio, {passive:true}));
+
 /* ====== 화면 꺼짐 방지 (Wake Lock) ====== */
 let wakeLock = null;
 async function requestWakeLock(){
@@ -519,7 +537,10 @@ function releaseWakeLock(){
   try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){}
 }
 document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState==="visible" && running) requestWakeLock();
+  if(document.visibilityState==="visible"){
+    if(running) requestWakeLock();
+    if(actx && actx.state==="suspended") actx.resume();
+  }
 });
 
 /* ====== 서비스워커 등록 (오프라인 사용) ====== */
