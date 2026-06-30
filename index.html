@@ -155,7 +155,7 @@
 <div class="card">
   <h2>단계 (시간·물량·동작을 직접 수정하세요)</h2>
   <div class="step-head">
-    <div>시간</div><div>동작</div><div>°C</div><div>+이번</div><div>누적(g)</div><div></div>
+    <div>시간</div><div>동작</div><div>°C</div><div>물(ml)</div><div>누적 물(ml)</div><div></div>
   </div>
   <div id="steps"></div>
   <button class="add-step" id="addStep">＋ 단계 추가</button>
@@ -384,13 +384,13 @@ function updateDisplay(sec){
     const st = steps[idx];
     const add = st.w - (idx>0 ? steps[idx-1].w : 0);
     document.getElementById("nowAction").textContent = st.a;
-    document.getElementById("addVal").textContent = (add>=0?"+":"") + add + " g";
-    document.getElementById("cumVal").textContent = st.w + " g";
+    document.getElementById("addVal").textContent = (add>=0?"+":"") + add + " ml";
+    document.getElementById("cumVal").textContent = st.w + " ml";
     document.getElementById("tempVal").textContent = effTemp(steps, idx, false) + "℃";
   }else{
     document.getElementById("nowAction").textContent = "시작을 누르세요";
-    document.getElementById("addVal").textContent = "+0 g";
-    document.getElementById("cumVal").textContent = "0 g";
+    document.getElementById("addVal").textContent = "+0 ml";
+    document.getElementById("cumVal").textContent = "0 ml";
     document.getElementById("tempVal").textContent = "--";
   }
 
