@@ -63,11 +63,12 @@
   /* 타이머 */
   .timer-wrap{text-align:center;}
   .clock{font-size:54px;font-weight:800;letter-spacing:2px;font-variant-numeric:tabular-nums;margin:2px 0;}
-  .now-target{display:flex;justify-content:center;gap:18px;margin-bottom:4px;min-height:34px;}
+  .now-target{display:flex;justify-content:center;gap:14px;margin-bottom:4px;min-height:34px;}
   .now-target .box{display:flex;flex-direction:column;align-items:center;}
   .now-target .lbl{font-size:11px;color:var(--muted);}
   .now-target .val{font-size:22px;font-weight:800;color:var(--accent2);line-height:1.1;}
   .now-target .add .val{color:var(--accent);}
+  .now-target .temp .val{color:#7fc8ff;}
   .now-action{font-size:17px;color:var(--accent);font-weight:700;min-height:24px;margin-bottom:12px;}
   .controls{display:flex;gap:10px;}
   .controls button{
@@ -82,7 +83,7 @@
 
   /* 단계 테이블 */
   .step{
-    display:grid;grid-template-columns:62px 1fr 52px 56px 24px;gap:5px;align-items:center;
+    display:grid;grid-template-columns:54px 1fr 46px 46px 50px 22px;gap:4px;align-items:center;
     padding:8px;border-radius:10px;margin-bottom:6px;background:var(--panel2);border:1px solid transparent;
   }
   .step.active{border-color:var(--accent);background:var(--active);}
@@ -95,8 +96,10 @@
   .step .t-in{text-align:center;font-variant-numeric:tabular-nums;}
   .step .w-in{text-align:center;}
   .step .del{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0;}
-  .step-head{display:grid;grid-template-columns:62px 1fr 52px 56px 24px;gap:5px;font-size:10px;color:var(--muted);padding:0 8px 4px;}
+  .step-head{display:grid;grid-template-columns:54px 1fr 46px 46px 50px 22px;gap:4px;font-size:10px;color:var(--muted);padding:0 8px 4px;}
   .step .add-in{text-align:center;background:#1a1410;color:var(--accent);border:1px solid var(--line);opacity:.8;}
+  .step .c-in{text-align:center;color:#7fc8ff;}
+  .step .c-in::placeholder{color:#4a6478;}
   .add-step{
     width:100%;padding:10px;background:var(--panel2);border:1px dashed var(--line);color:var(--muted);
     border-radius:10px;cursor:pointer;font-size:14px;margin-top:4px;
@@ -125,6 +128,7 @@
   <div class="now-target" id="nowTarget">
     <div class="box add"><span class="lbl">이번에 부을 양</span><span class="val" id="addVal">+0 g</span></div>
     <div class="box"><span class="lbl">누적</span><span class="val" id="cumVal">0 g</span></div>
+    <div class="box temp"><span class="lbl">물온도</span><span class="val" id="tempVal">--</span></div>
   </div>
   <div class="now-action" id="nowAction">시작을 누르세요</div>
   <div class="bar"><div id="barFill"></div></div>
@@ -151,7 +155,7 @@
 <div class="card">
   <h2>단계 (시간·물량·동작을 직접 수정하세요)</h2>
   <div class="step-head">
-    <div>시간</div><div>동작</div><div>+이번</div><div>누적(g)</div><div></div>
+    <div>시간</div><div>동작</div><div>°C</div><div>+이번</div><div>누적(g)</div><div></div>
   </div>
   <div id="steps"></div>
   <button class="add-step" id="addStep">＋ 단계 추가</button>
@@ -171,9 +175,9 @@ const DEFAULTS = [
     coffee:"20", grind:"20", temp:"90",
     note:"산미가 적당히 있다. 1차 추출 후 물온도 90→70℃, 스위치 닫기.",
     steps:[
-      {t:0,   a:"뜸 들이기",      w:60},
+      {t:0,   a:"뜸 들이기",      w:60,  c:90},
       {t:30,  a:"1차 추출 (여과)", w:120},
-      {t:75,  a:"침출 (스위치 닫기)", w:280},
+      {t:75,  a:"침출 (스위치 닫기)", w:280, c:70},
       {t:105, a:"2차 추출",       w:280},
       {t:150, a:"완료",           w:280},
     ]
@@ -287,6 +291,17 @@ function renderSteps(){
     aIn.value = st.a; aIn.placeholder="동작";
     aIn.onchange = ()=>{ st.a = aIn.value; save(); };
 
+    // 물온도: 비워두면 직전 단계 온도(또는 시작온도)를 이어받음
+    const cIn = document.createElement("input");
+    cIn.className="c-in"; cIn.inputMode="numeric";
+    cIn.value = (st.c!=null && st.c!=="") ? st.c : "";
+    cIn.placeholder = effTemp(steps, i, true);
+    cIn.onchange = ()=>{
+      const v = cIn.value.trim();
+      if(v==="") delete st.c; else st.c = parseFloat(v)||0;
+      save(); renderSteps();
+    };
+
     // 이번에 추가되는 양 = 누적 - 직전 누적 (자동 계산, 읽기 전용)
     const addIn = document.createElement("input");
     addIn.className="add-in"; addIn.readOnly = true;
@@ -301,7 +316,7 @@ function renderSteps(){
     del.className="del"; del.textContent="×";
     del.onclick = ()=>{ if(steps.length>1){ steps.splice(i,1); save(); renderSteps(); } };
 
-    row.append(tIn,aIn,addIn,wIn,del);
+    row.append(tIn,aIn,cIn,addIn,wIn,del);
     wrap.appendChild(row);
   });
 }
@@ -327,6 +342,14 @@ document.getElementById("addStep").onclick = ()=>{
   steps.push({t:(last?last.t+30:0), a:"새 단계", w:last?last.w:0});
   save(); renderSteps();
 };
+
+/* ====== 단계 물온도 (이어받기: 직전 설정값 → 시작온도) ====== */
+function effTemp(steps, i, excludeSelf){
+  for(let j = excludeSelf ? i-1 : i; j>=0; j--){
+    if(steps[j].c!=null && steps[j].c!=="") return steps[j].c;
+  }
+  return data[cur].temp;
+}
 
 /* ====== 현재 단계 계산 ====== */
 function currentStepIndex(sec){
@@ -363,10 +386,12 @@ function updateDisplay(sec){
     document.getElementById("nowAction").textContent = st.a;
     document.getElementById("addVal").textContent = (add>=0?"+":"") + add + " g";
     document.getElementById("cumVal").textContent = st.w + " g";
+    document.getElementById("tempVal").textContent = effTemp(steps, idx, false) + "℃";
   }else{
     document.getElementById("nowAction").textContent = "시작을 누르세요";
     document.getElementById("addVal").textContent = "+0 g";
     document.getElementById("cumVal").textContent = "0 g";
+    document.getElementById("tempVal").textContent = "--";
   }
 
   // 단계 전환 시 알림음
