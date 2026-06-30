@@ -396,8 +396,8 @@ function updateDisplay(sec){
 
   // 단계 전환 시 알림음
   if(running && idx!==lastStepIdx && idx>=0){
-    beep(idx===steps.length-1 ? 2 : 1);
-    if(navigator.vibrate) navigator.vibrate(120);
+    if(idx===steps.length-1){ soundDone(); if(navigator.vibrate) navigator.vibrate([90,60,90,60,160]); }
+    else { soundMid(); if(navigator.vibrate) navigator.vibrate(110); }
     lastStepIdx = idx;
   }
 
@@ -419,7 +419,7 @@ function start(){
   lastStepIdx = currentStepIndex(elapsed);
   document.getElementById("goBtn").textContent = "일시정지";
   requestWakeLock();
-  beep(1);
+  soundStart();
   tick();
 }
 function stop(){
@@ -444,35 +444,69 @@ document.getElementById("resetAll").onclick = ()=>{
   }
 };
 
-/* ====== 알림음 (WebAudio) - 벨/마림바 차임 ====== */
-let actx;
-// 종소리: 기본음 + 배음을 겹쳐 맑게 울리게
-function bell(t, freq, dur, vol){
-  const partials = [[1,vol,dur],[2.0,vol*0.45,dur*0.6],[3.01,vol*0.22,dur*0.35]];
-  for(const [mult,v,d] of partials){
+/* ====== 고급 알림음 (WebAudio: 배음 합성 + 잔향) ====== */
+let actx, masterGain, reverbIn;
+function initAudio(){
+  if(actx) return;
+  const AC = window.AudioContext||window.webkitAudioContext;
+  actx = new AC();
+  masterGain = actx.createGain();
+  masterGain.gain.value = 0.8;
+  masterGain.connect(actx.destination);
+  // 합성 임펄스 리버브로 공간감 있는 잔향 부여
+  const conv = actx.createConvolver();
+  const rate = actx.sampleRate, len = Math.floor(rate * 2.4);
+  const buf = actx.createBuffer(2, len, rate);
+  for(let ch=0; ch<2; ch++){
+    const d = buf.getChannelData(ch);
+    for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 2.6);
+  }
+  conv.buffer = buf;
+  const wet = actx.createGain(); wet.gain.value = 0.30;
+  conv.connect(wet); wet.connect(masterGain);
+  reverbIn = actx.createGain(); reverbIn.connect(conv);
+}
+// 한 음: 배음을 겹치고 dry + 리버브로 보냄. type: "bell"(맑음) / "warm"(부드러움)
+function note(t, freq, dur, vol, type){
+  const partials = type==="bell"
+    ? [[1,vol,dur],[2.01,vol*0.4,dur*0.55],[3.0,vol*0.18,dur*0.3]]
+    : [[1,vol,dur],[2,vol*0.22,dur*0.7]];
+  const attack = type==="warm" ? 0.04 : 0.006;
+  for(const [m,v,d] of partials){
     const o = actx.createOscillator(), g = actx.createGain();
-    o.type = "sine"; o.frequency.value = freq*mult;
-    o.connect(g); g.connect(actx.destination);
+    o.type = type==="warm" ? "triangle" : "sine";
+    o.frequency.value = freq*m;
+    o.connect(g); g.connect(masterGain); g.connect(reverbIn);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(v, t+0.006);
+    g.gain.exponentialRampToValueAtTime(v, t+attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t+d);
-    o.start(t); o.stop(t+d+0.05);
+    o.start(t); o.stop(t+d+0.06);
   }
 }
-function beep(times){
+function audioReady(){ initAudio(); if(actx.state==="suspended") actx.resume(); return actx.currentTime + 0.03; }
+
+// 시작음: 따뜻하게 피어오르는 상행 + 머무는 음 (G4-C5-E5 → G5)
+function soundStart(){
   try{
-    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
-    if(actx.state === "suspended") actx.resume();
-    const t0 = actx.currentTime + 0.03;
-    if(times >= 2){
-      // 추출 완료: 상행 4음 아르페지오 (C6-E6-G6-C7)
-      const notes = [1046.5, 1318.5, 1568.0, 2093.0];
-      notes.forEach((f,i)=> bell(t0 + i*0.14, f, 1.1, 0.33));
-    }else{
-      // 단계 알림: 맑은 상행 2음 (C6 -> G6)
-      bell(t0,        1046.5, 0.55, 0.30);
-      bell(t0 + 0.13, 1568.0, 0.85, 0.30);
-    }
+    const t = audioReady();
+    [392.00, 523.25, 659.25].forEach((f,i)=> note(t+i*0.08, f, 1.2, 0.16, "warm"));
+    note(t+0.24, 783.99, 1.8, 0.15, "warm");
+  }catch(e){}
+}
+// 중간음: 맑고 가벼운 단일 벨 핑 + 옥타브 반짝임 (반복돼도 산뜻하게)
+function soundMid(){
+  try{
+    const t = audioReady();
+    note(t,        1174.66, 0.7, 0.26, "bell");
+    note(t+0.005,  2349.32, 0.4, 0.06, "bell");
+  }catch(e){}
+}
+// 완료음: 우아하게 해결되는 상행 + 메이저 화음 + 긴 잔향 (C5-E5-G5 → Cmaj)
+function soundDone(){
+  try{
+    const t = audioReady();
+    [523.25, 659.25, 783.99].forEach((f,i)=> note(t+i*0.12, f, 0.8, 0.20, "bell"));
+    [523.25, 659.25, 783.99, 1046.50].forEach(f=> note(t+0.42, f, 2.4, 0.12, "bell"));
   }catch(e){}
 }
 

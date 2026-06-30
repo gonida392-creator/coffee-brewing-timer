@@ -1,5 +1,5 @@
 // 오프라인 캐시용 서비스워커
-const CACHE = "brew-timer-v5";
+const CACHE = "brew-timer-v6";
 const ASSETS = [
   "./",
   "./index.html",
