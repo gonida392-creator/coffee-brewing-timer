@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>커피 브루잉 타이머</title>
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1a1410">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="브루잉">
+<meta name="description" content="커피 핸드드립 브루잉 타이머 - 시간·물량·동작 안내">
+<style>html{padding-top:env(safe-area-inset-top);}</style>
+<style>
+  :root{
+    --bg:#1a1410;
+    --panel:#241c16;
+    --panel2:#2e241c;
+    --line:#3d3026;
+    --text:#f3ece4;
+    --muted:#a8978a;
+    --accent:#d4a017;      /* 사진 속 노란 강조색 */
+    --accent2:#e8c45a;
+    --active:#3a2c1a;
+    --done:#1f2a1a;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    padding:14px 14px 60px;max-width:520px;margin:0 auto;
+  }
+  h1{font-size:20px;margin:4px 0 14px;text-align:center;letter-spacing:-.5px;}
+  h1 span{color:var(--accent);}
+
+  /* 레시피 선택 */
+  .recipes{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .recipes button{
+    flex:1;min-width:90px;padding:10px 6px;border:1px solid var(--line);
+    background:var(--panel);color:var(--muted);border-radius:10px;font-size:13px;
+    cursor:pointer;transition:.15s;font-weight:600;
+  }
+  .recipes button.sel{background:var(--accent);color:#1a1410;border-color:var(--accent);}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;}
+  .card h2{font-size:14px;margin:0 0 10px;color:var(--accent2);font-weight:700;}
+
+  /* 파라미터 입력 */
+  .params{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+  .param{display:flex;flex-direction:column;gap:4px;}
+  .param label{font-size:11px;color:var(--muted);}
+  .param input{
+    width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:8px;font-size:14px;text-align:center;
+  }
+  .param input:focus{outline:none;border-color:var(--accent);}
+
+  /* 타이머 */
+  .timer-wrap{text-align:center;}
+  .clock{font-size:54px;font-weight:800;letter-spacing:2px;font-variant-numeric:tabular-nums;margin:2px 0;}
+  .now-target{display:flex;justify-content:center;gap:18px;margin-bottom:4px;min-height:34px;}
+  .now-target .box{display:flex;flex-direction:column;align-items:center;}
+  .now-target .lbl{font-size:11px;color:var(--muted);}
+  .now-target .val{font-size:22px;font-weight:800;color:var(--accent2);line-height:1.1;}
+  .now-target .add .val{color:var(--accent);}
+  .now-action{font-size:17px;color:var(--accent);font-weight:700;min-height:24px;margin-bottom:12px;}
+  .controls{display:flex;gap:10px;}
+  .controls button{
+    flex:1;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;
+  }
+  .btn-go{background:var(--accent);color:#1a1410;}
+  .btn-reset{background:var(--panel2);color:var(--text);border:1px solid var(--line);}
+
+  /* 진행바 */
+  .bar{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin:12px 0 2px;}
+  .bar > div{height:100%;background:var(--accent);width:0;transition:width .2s linear;}
+
+  /* 단계 테이블 */
+  .step{
+    display:grid;grid-template-columns:62px 1fr 52px 56px 24px;gap:5px;align-items:center;
+    padding:8px;border-radius:10px;margin-bottom:6px;background:var(--panel2);border:1px solid transparent;
+  }
+  .step.active{border-color:var(--accent);background:var(--active);}
+  .step.done{opacity:.5;}
+  .step input{
+    background:#1a1410;border:1px solid var(--line);color:var(--text);border-radius:7px;
+    padding:7px 6px;font-size:13px;width:100%;
+  }
+  .step input:focus{outline:none;border-color:var(--accent);}
+  .step .t-in{text-align:center;font-variant-numeric:tabular-nums;}
+  .step .w-in{text-align:center;}
+  .step .del{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0;}
+  .step-head{display:grid;grid-template-columns:62px 1fr 52px 56px 24px;gap:5px;font-size:10px;color:var(--muted);padding:0 8px 4px;}
+  .step .add-in{text-align:center;background:#1a1410;color:var(--accent);border:1px solid var(--line);opacity:.8;}
+  .add-step{
+    width:100%;padding:10px;background:var(--panel2);border:1px dashed var(--line);color:var(--muted);
+    border-radius:10px;cursor:pointer;font-size:14px;margin-top:4px;
+  }
+
+  .feature{font-size:13px;color:var(--muted);line-height:1.5;background:var(--panel2);border-radius:8px;padding:10px;}
+  .feature textarea{
+    width:100%;background:transparent;border:none;color:var(--muted);font-size:13px;resize:vertical;
+    font-family:inherit;line-height:1.5;min-height:42px;
+  }
+  .feature textarea:focus{outline:none;}
+
+  .small{font-size:11px;color:var(--muted);text-align:center;margin-top:6px;}
+  .reset-all{background:none;border:none;color:var(--muted);text-decoration:underline;font-size:12px;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<h1>☕ 브루잉 <span>타이머</span></h1>
+
+<div class="recipes" id="recipes"></div>
+
+<!-- 타이머 -->
+<div class="card timer-wrap">
+  <div class="clock" id="clock">0:00</div>
+  <div class="now-target" id="nowTarget">
+    <div class="box add"><span class="lbl">이번에 부을 양</span><span class="val" id="addVal">+0 g</span></div>
+    <div class="box"><span class="lbl">누적</span><span class="val" id="cumVal">0 g</span></div>
+  </div>
+  <div class="now-action" id="nowAction">시작을 누르세요</div>
+  <div class="bar"><div id="barFill"></div></div>
+  <div class="controls">
+    <button class="btn-go" id="goBtn">시작</button>
+    <button class="btn-reset" id="resetBtn">리셋</button>
+  </div>
+</div>
+
+<!-- 파라미터 -->
+<div class="card">
+  <h2>설정</h2>
+  <div class="params">
+    <div class="param"><label>커피 (g)</label><input id="pCoffee" inputmode="decimal"></div>
+    <div class="param"><label>분쇄 (클릭)</label><input id="pGrind" inputmode="numeric"></div>
+    <div class="param"><label>시작온도 (℃)</label><input id="pTemp" inputmode="numeric"></div>
+  </div>
+  <div class="feature" style="margin-top:10px;">
+    <textarea id="pNote" placeholder="특징 / 메모"></textarea>
+  </div>
+</div>
+
+<!-- 단계 -->
+<div class="card">
+  <h2>단계 (시간·물량·동작을 직접 수정하세요)</h2>
+  <div class="step-head">
+    <div>시간</div><div>동작</div><div>+이번</div><div>누적(g)</div><div></div>
+  </div>
+  <div id="steps"></div>
+  <button class="add-step" id="addStep">＋ 단계 추가</button>
+</div>
+
+<div class="small">
+  모든 수치는 자동 저장됩니다 · <button class="reset-all" id="resetAll">기본값으로 되돌리기</button>
+</div>
+
+<script>
+/* ====== 기본 레시피 데이터 (사진 기반) ======
+   step.t = 단계 시작 시각(초). 마지막 단계 종료는 다음 단계 시작 또는 +endpad.
+   step.w = 그 시점까지 누적 물 목표(g).  step.a = 동작 설명.  */
+const DEFAULTS = [
+  {
+    name:"악마의 레시피",
+    coffee:"20", grind:"20", temp:"90",
+    note:"산미가 적당히 있다. 1차 추출 후 물온도 90→70℃, 스위치 닫기.",
+    steps:[
+      {t:0,   a:"뜸 들이기",      w:60},
+      {t:30,  a:"1차 추출 (여과)", w:120},
+      {t:75,  a:"침출 (스위치 닫기)", w:280},
+      {t:105, a:"2차 추출",       w:280},
+      {t:150, a:"완료",           w:280},
+    ]
+  },
+  {
+    name:"따뜻한 브루잉",
+    coffee:"20", grind:"40", temp:"96",
+    note:"비율 1:15. 산미 적고 은은, 단맛 좋음. 질감이 젤리같이 몽글·찐득. 식으면 더 맛있다. (15초 간격 9번 푸어, 매번 알림)",
+    steps:[
+      {t:0,   a:"뜸 들이기",          w:30},
+      {t:30,  a:"푸어 1",             w:60},
+      {t:45,  a:"푸어 2",             w:90},
+      {t:60,  a:"푸어 3",             w:120},
+      {t:75,  a:"푸어 4",             w:150},
+      {t:90,  a:"푸어 5",             w:180},
+      {t:105, a:"푸어 6",             w:210},
+      {t:120, a:"푸어 7",             w:240},
+      {t:135, a:"푸어 8",             w:270},
+      {t:150, a:"푸어 9 (마지막)",     w:300},
+      {t:165, a:"드로다운 (추출완료)", w:300},
+      {t:210, a:"완료",               w:300},
+    ]
+  },
+  {
+    name:"차가운 브루잉",
+    coffee:"20", grind:"40", temp:"96",
+    note:"비율 1:10. 질감 다름, 산미 더 둥글고 부드러움. 단맛이 계속 남는다. (15초 간격 5번 푸어, 매번 알림)",
+    steps:[
+      {t:0,   a:"뜸 들이기",          w:50},
+      {t:30,  a:"푸어 1",             w:80},
+      {t:45,  a:"푸어 2",             w:110},
+      {t:60,  a:"푸어 3",             w:140},
+      {t:75,  a:"푸어 4",             w:170},
+      {t:90,  a:"푸어 5 (마지막)",     w:200},
+      {t:105, a:"드로다운 (추출완료)", w:200},
+      {t:120, a:"완료",               w:200},
+    ]
+  },
+];
+
+const ENDPAD = 30; // 마지막 단계 길이(초)
+
+/* ====== 상태 ====== */
+let data = load();
+let cur = 0;          // 선택된 레시피 index
+let elapsed = 0;      // 경과 초
+let running = false;
+let startMs = 0;
+let raf = null;
+let lastStepIdx = -1;
+
+function load(){
+  try{
+    const s = localStorage.getItem("brewData");
+    if(s) return JSON.parse(s);
+  }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULTS));
+}
+function save(){ localStorage.setItem("brewData", JSON.stringify(data)); }
+
+/* ====== 시간 포맷 ====== */
+function fmt(sec){
+  sec = Math.max(0, Math.floor(sec));
+  const m = Math.floor(sec/60), s = sec%60;
+  return m + ":" + String(s).padStart(2,"0");
+}
+function parseTime(str){
+  str = (str||"").trim();
+  if(str.includes(":")){
+    const [m,s] = str.split(":");
+    return (parseInt(m)||0)*60 + (parseInt(s)||0);
+  }
+  return parseInt(str)||0;
+}
+
+/* ====== 렌더 ====== */
+function renderRecipes(){
+  const el = document.getElementById("recipes");
+  el.innerHTML = "";
+  data.forEach((r,i)=>{
+    const b = document.createElement("button");
+    b.textContent = r.name;
+    if(i===cur) b.className = "sel";
+    b.onclick = ()=>{ reset(); cur=i; renderAll(); };
+    el.appendChild(b);
+  });
+}
+
+function renderParams(){
+  const r = data[cur];
+  document.getElementById("pCoffee").value = r.coffee;
+  document.getElementById("pGrind").value  = r.grind;
+  document.getElementById("pTemp").value   = r.temp;
+  document.getElementById("pNote").value   = r.note;
+}
+
+function renderSteps(){
+  const wrap = document.getElementById("steps");
+  wrap.innerHTML = "";
+  const steps = data[cur].steps;
+  steps.forEach((st,i)=>{
+    const row = document.createElement("div");
+    row.className = "step";
+    row.dataset.i = i;
+
+    const tIn = document.createElement("input");
+    tIn.className="t-in"; tIn.value = fmt(st.t); tIn.placeholder="0:00";
+    tIn.onchange = ()=>{ st.t = parseTime(tIn.value); tIn.value=fmt(st.t); save(); };
+
+    const aIn = document.createElement("input");
+    aIn.value = st.a; aIn.placeholder="동작";
+    aIn.onchange = ()=>{ st.a = aIn.value; save(); };
+
+    // 이번에 추가되는 양 = 누적 - 직전 누적 (자동 계산, 읽기 전용)
+    const addIn = document.createElement("input");
+    addIn.className="add-in"; addIn.readOnly = true;
+    const addVal = st.w - (i>0 ? steps[i-1].w : 0);
+    addIn.value = (addVal>=0?"+":"") + addVal;
+
+    const wIn = document.createElement("input");
+    wIn.className="w-in"; wIn.value = st.w; wIn.inputMode="decimal"; wIn.placeholder="g";
+    wIn.onchange = ()=>{ st.w = parseFloat(wIn.value)||0; save(); renderSteps(); };
+
+    const del = document.createElement("button");
+    del.className="del"; del.textContent="×";
+    del.onclick = ()=>{ if(steps.length>1){ steps.splice(i,1); save(); renderSteps(); } };
+
+    row.append(tIn,aIn,addIn,wIn,del);
+    wrap.appendChild(row);
+  });
+}
+
+function renderAll(){
+  renderRecipes(); renderParams(); renderSteps();
+  updateDisplay(0);
+}
+
+/* ====== 파라미터 입력 바인딩 ====== */
+["pCoffee","pGrind","pTemp"].forEach(id=>{
+  document.getElementById(id).addEventListener("change", e=>{
+    const key = {pCoffee:"coffee",pGrind:"grind",pTemp:"temp"}[id];
+    data[cur][key] = e.target.value; save();
+  });
+});
+document.getElementById("pNote").addEventListener("change", e=>{ data[cur].note=e.target.value; save(); });
+
+/* ====== 단계 추가 ====== */
+document.getElementById("addStep").onclick = ()=>{
+  const steps = data[cur].steps;
+  const last = steps[steps.length-1];
+  steps.push({t:(last?last.t+30:0), a:"새 단계", w:last?last.w:0});
+  save(); renderSteps();
+};
+
+/* ====== 현재 단계 계산 ====== */
+function currentStepIndex(sec){
+  const steps = data[cur].steps;
+  let idx = -1;
+  for(let i=0;i<steps.length;i++){
+    if(sec >= steps[i].t) idx = i; else break;
+  }
+  return idx;
+}
+function totalTime(){
+  const steps = data[cur].steps;
+  return steps[steps.length-1].t + ENDPAD;
+}
+
+/* ====== 화면 갱신 ====== */
+function updateDisplay(sec){
+  const steps = data[cur].steps;
+  document.getElementById("clock").textContent = fmt(sec);
+
+  const idx = currentStepIndex(sec);
+  const total = totalTime();
+  document.getElementById("barFill").style.width = Math.min(100, sec/total*100) + "%";
+
+  // 단계 하이라이트
+  document.querySelectorAll(".step").forEach((row,i)=>{
+    row.classList.toggle("active", i===idx);
+    row.classList.toggle("done", i<idx);
+  });
+
+  if(idx>=0){
+    const st = steps[idx];
+    const add = st.w - (idx>0 ? steps[idx-1].w : 0);
+    document.getElementById("nowAction").textContent = st.a;
+    document.getElementById("addVal").textContent = (add>=0?"+":"") + add + " g";
+    document.getElementById("cumVal").textContent = st.w + " g";
+  }else{
+    document.getElementById("nowAction").textContent = "시작을 누르세요";
+    document.getElementById("addVal").textContent = "+0 g";
+    document.getElementById("cumVal").textContent = "0 g";
+  }
+
+  // 단계 전환 시 알림음
+  if(running && idx!==lastStepIdx && idx>=0){
+    beep(idx===steps.length-1 ? 2 : 1);
+    if(navigator.vibrate) navigator.vibrate(120);
+    lastStepIdx = idx;
+  }
+
+  // 종료
+  if(running && sec>=total){ stop(); document.getElementById("nowAction").textContent="추출 완료 ☕"; }
+}
+
+/* ====== 타이머 루프 ====== */
+function tick(){
+  if(!running) return;
+  elapsed = (performance.now()-startMs)/1000;
+  updateDisplay(elapsed);
+  raf = requestAnimationFrame(tick);
+}
+function start(){
+  if(running) return;
+  running = true;
+  startMs = performance.now() - elapsed*1000;
+  lastStepIdx = currentStepIndex(elapsed);
+  document.getElementById("goBtn").textContent = "일시정지";
+  requestWakeLock();
+  beep(1);
+  tick();
+}
+function stop(){
+  running = false;
+  cancelAnimationFrame(raf);
+  document.getElementById("goBtn").textContent = "계속";
+  releaseWakeLock();
+}
+function reset(){
+  stop(); elapsed=0; lastStepIdx=-1;
+  document.getElementById("goBtn").textContent = "시작";
+  updateDisplay(0);
+}
+
+document.getElementById("goBtn").onclick = ()=> running ? stop() : start();
+document.getElementById("resetBtn").onclick = reset;
+
+document.getElementById("resetAll").onclick = ()=>{
+  if(confirm("모든 레시피를 사진 기본값으로 되돌릴까요? (수정 내용 삭제)")){
+    data = JSON.parse(JSON.stringify(DEFAULTS));
+    save(); cur=0; reset(); renderAll();
+  }
+};
+
+/* ====== 알림음 (WebAudio) ====== */
+let actx;
+function beep(times){
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    for(let i=0;i<times;i++){
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.connect(g); g.connect(actx.destination);
+      o.frequency.value = 880;
+      const t = actx.currentTime + i*0.18;
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(0.3,t+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.15);
+      o.start(t); o.stop(t+0.16);
+    }
+  }catch(e){}
+}
+
+/* ====== 화면 꺼짐 방지 (Wake Lock) ====== */
+let wakeLock = null;
+async function requestWakeLock(){
+  try{ if("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); }catch(e){}
+}
+function releaseWakeLock(){
+  try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){}
+}
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState==="visible" && running) requestWakeLock();
+});
+
+/* ====== 서비스워커 등록 (오프라인 사용) ====== */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=> navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+
+/* ====== 시작 ====== */
+renderAll();
+</script>
+</body>
+</html>
